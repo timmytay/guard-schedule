@@ -1,0 +1,6 @@
+{% if not fragment %}<a class="back" href="/?month={{ slot.schedule.month|date:'Y-m' }}">← К расписанию</a>{% endif %}
+<section class="panel"><h2>{{ label }}</h2><p>Позиция № {{ slot.pk }} · {% if current %}{{ current.guard }}{% else %}Свободна{% endif %}</p>{% if pending %}<div class="flash warning">Открыт подбор замены по больничному. При отдыхе менее 3 суток подтвердите экстренную замену.</div>{% endif %}</section>
+<div class="columns">
+<section class="panel"><h2>Изменить назначение</h2>{% if future %}<form method="post" action="{% url 'slot' slot.pk %}{% if fragment %}?modal=1{% endif %}">{% csrf_token %}{{ form.as_p }}<button>Подтвердить</button></form>{% else %}<p>Смена уже началась.</p>{% endif %}</section>
+<section class="panel"><h2>Доступные охранники</h2>{% for guard, rest in candidates %}<div class="row"><strong>{{ guard }}</strong><span>{% if rest == 365 %}Нет соседних смен{% elif rest < 3 %}<span class="amber">{{ rest }} сут. · экстренная замена</span>{% else %}{{ rest }} сут. отдыха{% endif %}</span></div>{% empty %}<p>Нет кандидатов. Проверьте отсутствия, ближайшие назначения и междусменный отдых.</p>{% endfor %}
+<h2>История назначений</h2>{% for a in history %}<div class="row">{{ a.guard }}<span class="chip">{{ a.get_state_display }}</span></div>{% empty %}<p>Назначений пока нет.</p>{% endfor %}</section></div>

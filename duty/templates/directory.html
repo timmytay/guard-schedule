@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block content %}
+<div class="columns"><section class="panel"><h2>{% if instance %}Редактировать карточку{% else %}Добавить запись{% endif %}</h2><form method="post">{% csrf_token %}{{ form.as_p }}<button>Сохранить</button> {% if instance %}<a href="{% url 'directory' kind %}">Закрыть</a>{% endif %}</form></section>
+<section class="panel"><h2>{{ title }} <span class="chip">{{ rows|length }}</span></h2>{% for row in rows %}<div class="row"><div><strong>{{ row }}</strong><small>{% if kind == "guards" %}{{ row.username }}{% if not row.is_active %} · Неактивен{% endif %}{% else %}{{ row.address }}{% if not row.active %} · Неактивен{% endif %}{% endif %}</small></div><a href="{% url 'directory_edit' kind row.pk %}">Изменить</a></div>{% empty %}<p>Справочник пуст.</p>{% endfor %}</section></div>
+{% endblock %}

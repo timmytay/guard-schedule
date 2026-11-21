@@ -1,0 +1,7 @@
+{% extends "base.html" %}{% block content %}
+{% if failed %}<section class="panel"><h2>Письма, отклонённые SMTP</h2>{% for n in failed %}<div class="row">{{ n.recipient }} · {{ n.notice.body }}<form method="post" action="{% url 'repeat' n.pk %}">{% csrf_token %}<button class="secondary">Повторить</button></form></div>{% endfor %}</section>{% endif %}
+<section class="panel">{% for n in rows %}<article class="record"><div class="section-head"><small>{{ n.notice.created|date:"d.m.Y H:i" }}{% if user.dispatcher %} · {{ n.recipient }}{% if n.email_delivery.sent %} · Принято SMTP{% elif n.email_delivery.failed %} · Ошибка SMTP{% elif n.email_delivery %} · В очереди SMTP{% endif %}{% endif %}</small><span class="chip">{% if n.acknowledged %}Подтверждено{% elif n.repeated %}Не подтверждено · повтор{% else %}Ожидает подтверждения{% endif %}</span></div><p>{{ n.notice.body }}</p><div class="actions">
+{% if user.pk == n.recipient_id and not n.acknowledged %}<form method="post" action="{% url 'acknowledge' n.pk %}">{% csrf_token %}<button>Подтвердить получение</button></form>{% endif %}
+{% if user.dispatcher and not n.acknowledged %}<form method="post" action="{% url 'repeat' n.pk %}">{% csrf_token %}<button class="secondary">Повторить уведомление</button></form>{% endif %}
+</div></article>{% empty %}<p>Уведомлений пока нет.</p>{% endfor %}</section>
+{% endblock %}

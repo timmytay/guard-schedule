@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% load static %}
+{% block head %}<link rel="stylesheet" href="{% static 'vue/app.css' %}">{% endblock %}
+{% block content %}
+<div data-vue-page="{{ vue_page }}">
+  <noscript>Для работы этого раздела включите JavaScript.</noscript>
+</div>
+{{ vue_data|json_script:"vue-page-data" }}
+<script type="module" src="{% static 'vue/app.js' %}"></script>
+{% endblock %}

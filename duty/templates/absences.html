@@ -1,0 +1,8 @@
+{% extends "base.html" %}{% block content %}
+<div class="columns"><section class="panel"><h2>Зарегистрировать отсутствие</h2><form method="post">{% csrf_token %}{{ form.as_p }}<button>Сохранить</button></form></section>
+<section class="panel"><h2>Зарегистрированные отсутствия</h2>
+{% for a, assignments in rows %}<article class="record"><strong>{{ a.guard }} · {{ a.get_kind_display }}</strong><p>{{ a.start|date:"d.m.Y" }} — {{ a.end|date:"d.m.Y"|default:"открыт" }} · {{ a.reason }}</p>
+{% if not a.end %}<form class="inline" action="{% url 'close_absence' a.pk %}" method="post">{% csrf_token %}<input type="date" name="end" aria-label="Дата окончания больничного" required><button class="secondary">Закрыть больничный</button></form>{% endif %}
+{% for assignment in assignments %}<div class="row"><a href="{% url 'slot' assignment.slot_id %}">{{ assignment.slot.day|date:"d.m.Y" }} · {{ assignment.slot.site }} · Пост {{ assignment.slot.number }}</a><span class="chip warning">Требует переназначения</span></div>{% empty %}<small>Будущих смен к переназначению нет.</small>{% endfor %}</article>
+{% empty %}<p>Отсутствий пока нет.</p>{% endfor %}</section></div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% load static %}<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title|default:"Авторизация" }} · График охраны</title><link rel="stylesheet" href="{% static 'duty.css' %}">{% block head %}{% endblock %}</head>
+<body>
+{% if user.is_authenticated %}
+<aside class="sidebar">
+  <a href="{% url 'home' %}" class="brand"><span class="brand-mark">ГО</span><span>График охраны<small>Управление дежурствами</small></span></a>
+  <nav aria-label="Разделы">
+    <a href="{% url 'home' %}">Главная</a>
+    <a href="/" {% if request.resolver_match.url_name == 'schedule' %}aria-current="page"{% endif %}>Расписание</a>
+    {% if user.dispatcher %}<a href="{% url 'absences' %}">Замены</a>{% endif %}
+    <a href="{% url 'reports' %}">Отчеты</a>
+    <a href="{% url 'notices' %}">Уведомления</a>
+    {% if user.dispatcher %}
+    <div class="nav-label">УПРАВЛЕНИЕ</div>
+    <a href="{% url 'directory' 'guards' %}">Сотрудники</a><a href="{% url 'directory' 'sites' %}">Объекты охраны</a><a href="{% url 'audit' %}">Журнал</a>
+    {% endif %}
+  </nav>
+  <div class="profile"><strong>{{ user }}</strong><small>{% if user.dispatcher %}Диспетчер{% else %}Охранник{% endif %}</small><form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="quiet">Выйти</button></form></div>
+</aside>
+{% endif %}
+<main class="{% if not user.is_authenticated %}login-shell{% endif %}">
+{% if user.is_authenticated %}<header class="page-header"><h1>{{ title }}</h1></header>{% endif %}
+{% for message in messages %}<div class="flash {{ message.tags }}" role="status">{{ message }}</div>{% endfor %}
+{% block content %}{% endblock %}
+</main>
+</body></html>

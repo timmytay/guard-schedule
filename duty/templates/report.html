@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% block content %}
+<a class="back" href="{% url 'reports' %}">← К отчётам</a>
+<section class="panel report"><div class="section-head"><div><h2>{{ assignment.guard }}</h2><p class="muted">{{ label }}</p></div><span class="chip">{{ report.get_state_display|default:"Черновик" }}</span></div>
+{% if report.feedback %}<div class="flash warning">{{ report.feedback }}</div>{% endif %}
+{% if editable %}<form method="post">{% csrf_token %}{{ form.as_p }}<div class="actions"><button name="action" value="draft" class="secondary">Сохранить черновик</button><button name="action" value="submit">Отправить на проверку</button></div></form>
+{% else %}
+<h3>Отметки о приёме-передаче</h3><p class="preserve">{{ report.handover|default:"—" }}</p><h3>Происшествия</h3><p class="preserve">{{ report.incidents|default:"—" }}</p>
+{% if user.dispatcher and report.state == "review" %}<form method="post">{% csrf_token %}<label>Причина возврата<textarea name="feedback" rows="3" maxlength="2000"></textarea></label><div class="actions"><button name="action" value="return" class="secondary">Вернуть на доработку</button><button name="action" value="approve">Утвердить</button></div></form>{% endif %}{% endif %}
+</section>{% endblock %}
