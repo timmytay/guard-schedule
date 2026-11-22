@@ -47,12 +47,21 @@ class ChangeForm(forms.Form):
 
 
 class GuardForm(forms.ModelForm):
-    password = forms.CharField(label="Пароль", required=False, widget=forms.PasswordInput)
+    password = forms.CharField(label="Пароль", required=False, strip=False, widget=forms.PasswordInput)
 
     class Meta:
         model = User
         fields = ["username", "first_name", "last_name", "email", "phone", "is_active"]
-        labels = {"phone": "Телефон"}
+        labels = {"username": "Логин", "phone": "Телефон"}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["password"].required = self.instance.pk is None
+        self.fields["password"].help_text = (
+            "Не менее 8 символов. Не используйте распространённые пароли."
+            if self.instance.pk is None else "Оставьте пустым, чтобы сохранить текущий пароль."
+        )
+        self.order_fields(["username", "password", "first_name", "last_name", "email", "phone", "is_active"])
 
     def clean_password(self):
         password = self.cleaned_data["password"]

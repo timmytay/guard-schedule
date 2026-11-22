@@ -247,6 +247,20 @@ def directory(request, kind, pk=None):
         svc.audit(request.user, "Обновлён справочник", directory=kind, id=obj.pk)
         messages.success(request, "Карточка сохранена.")
         return redirect("directory", kind=kind)
+    if kind == "guards":
+        data = {
+            "csrf": get_token(request),
+            "editing": instance is not None,
+            "listUrl": reverse("directory", args=[kind]),
+            "fields": {name: form[name].value() for name in
+                       ("username", "first_name", "last_name", "email", "phone", "is_active")},
+            "errors": {name: list(errors) for name, errors in form.errors.items()},
+            "rows": [{"id": row.pk, "name": str(row), "username": row.username,
+                      "active": row.is_active,
+                      "editUrl": reverse("directory_edit", args=[kind, row.pk])} for row in rows],
+        }
+        return render(request, "vue_page.html", {"title": title, "vue_page": "guards",
+                                                  "vue_data": data, "form": form})
     return render(request, "directory.html", {"title": title, "rows": rows, "form": form, "kind": kind, "instance": instance})
 
 

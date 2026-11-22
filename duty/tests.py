@@ -169,3 +169,56 @@ class AvailabilityUnitTests(SimpleTestCase):
 
     def test_absence_ending_before_shift_does_not_block(self):
         self.assertEqual(available_rest(self.day, [], [(date(2030, 2, 1), date(2030, 2, 9))]), 365)
+
+
+class GuardAccountTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.dispatcher = User.objects.create_user("account_editor", dispatcher=True)
+        cls.guard = User.objects.create_user("existing_guard")
+        Employee.objects.create(user=cls.guard)
+
+    def setUp(self):
+        self.client.force_login(self.dispatcher)
+        self.url = reverse("directory", args=["guards"])
+        self.data = {"username": "new_guard", "password": "Secure-Guard-4821!", "is_active": "on"}
+
+    def test_dispatcher_creates_guard_account_and_guard_can_log_in(self):
+        self.assertContains(self.client.get(self.url), 'data-vue-page="guards"')
+        self.assertRedirects(self.client.post(self.url, self.data), self.url)
+        user = User.objects.get(username="new_guard")
+        self.assertFalse(user.dispatcher)
+        self.assertTrue(Employee.objects.filter(user=user).exists())
+        self.assertNotEqual(user.password, self.data["password"])
+        self.client.logout()
+        self.assertTrue(self.client.login(username=user.username, password=self.data["password"]))
+        self.assertEqual(self.client.get(reverse("home")).status_code, 200)
+
+    def test_duplicate_username_is_rejected(self):
+        response = self.client.post(self.url, {**self.data, "username": self.guard.username})
+        self.assertIn("username", response.context["form"].errors)
+        self.assertEqual(User.objects.filter(username=self.guard.username).count(), 1)
+
+    def test_guard_cannot_create_accounts(self):
+        self.client.force_login(self.guard)
+        self.assertEqual(self.client.get(self.url).status_code, 403)
+        self.assertEqual(self.client.post(self.url, self.data).status_code, 403)
+        self.assertFalse(User.objects.filter(username=self.data["username"]).exists())
+
+    def test_password_required_for_new_guard(self):
+        response = self.client.post(self.url, {**self.data, "password": ""})
+        self.assertIn("password", response.context["form"].errors)
+        self.assertFalse(User.objects.filter(username=self.data["username"]).exists())
+
+    def test_dispatcher_changes_login_and_resets_password(self):
+        url = reverse("directory_edit", args=["guards", self.guard.pk])
+        self.guard.set_password("Old-Guard-4821!")
+        self.guard.save()
+        self.assertRedirects(self.client.post(url, {**self.data, "username": "renamed_guard"}), self.url)
+        self.guard.refresh_from_db()
+        self.assertEqual(self.guard.username, "renamed_guard")
+        self.assertTrue(self.guard.check_password(self.data["password"]))
+        self.assertFalse(self.guard.check_password("Old-Guard-4821!"))
+        self.assertRedirects(self.client.post(url, {**self.data, "username": "renamed_guard", "password": ""}), self.url)
+        self.guard.refresh_from_db()
+        self.assertTrue(self.guard.check_password(self.data["password"]))
