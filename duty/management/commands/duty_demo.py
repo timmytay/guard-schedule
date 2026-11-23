@@ -16,14 +16,14 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if not settings.DEBUG or User.objects.exists() or Schedule.objects.exists():
             raise CommandError("Для демонстрации требуется пустая база и локальный режим.")
-        dispatcher = User.objects.create_user("dispatcher", password=PASSWORD, dispatcher=True,
+        dispatcher = User.objects.create_user("dispatcher", password=PASSWORD, dispatcher=True, email="dispatcher@example.invalid",
                                               first_name="Анна", last_name="Волкова")
         names = [
             "Соколов", "Морозов", "Новиков", "Петров", "Иванов", "Орлов", "Кузнецов", "Лебедев",
             "Козлов", "Васильев", "Попов", "Григорьев", "Степанов", "Волков", "Зайцев", "Павлов",
             "Семёнов", "Голубев", "Ильин", "Макаров", "Смирнов", "Белов", "Фёдоров", "Давыдов", "Егоров",
         ]
-        guards = [User.objects.create_user(f"guard{i:02}", password=PASSWORD, first_name="Александр",
+        guards = [User.objects.create_user(f"guard{i:02}", password=PASSWORD, email=f"guard{i:02}@example.invalid", first_name="Александр",
                                          last_name=name) for i, name in enumerate(names, 1)]
         employees = Employee.objects.bulk_create(
             Employee(user=guard, personnel_number=f"ГО-{index:03}")
