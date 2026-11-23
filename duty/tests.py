@@ -15,8 +15,8 @@ from .services import available_rest, notify
 class GenerateScheduleTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.dispatcher = User.objects.create_user("dispatcher", dispatcher=True)
-        cls.guard = User.objects.create_user("guard")
+        cls.dispatcher = User.objects.create_user("dispatcher", email="dispatcher@example.test", dispatcher=True)
+        cls.guard = User.objects.create_user("guard", email="guard@example.test")
         Employee.objects.create(user=cls.guard)
         ObjectSite.objects.create(name="Объект")
 
@@ -31,7 +31,7 @@ class GenerateScheduleTests(TestCase):
         return self.client.post(self.url, {"year": 2028, "month": month}, content_type="application/json")
 
     def test_dispatcher_generates_full_schedule(self):
-        users = User.objects.bulk_create(User(username=f"guard{i}") for i in range(8))
+        users = User.objects.bulk_create(User(username=f"guard{i}", email=f"guard{i}@example.test") for i in range(8))
         Employee.objects.bulk_create(Employee(user=user) for user in users)
         response = self.post_period()
         self.assertEqual(response.status_code, 201)
@@ -63,10 +63,10 @@ class GenerateScheduleTests(TestCase):
 
 
 class DomainRelationsTests(TestCase):
-    @override_settings(EMAIL_HOST="smtp.example.test")
+    @override_settings(DUTY_EMAIL_MODE="smtp", EMAIL_HOST="smtp.example.test")
     def test_notification_has_delivery_per_recipient_and_channel(self):
         first = User.objects.create_user("first", email="first@example.test")
-        second = User.objects.create_user("second")
+        second = User.objects.create_user("second", email="second@example.invalid")
         notify([first, second], "График обновлён")
         notice = Notification.objects.get()
         self.assertCountEqual(
@@ -86,9 +86,9 @@ class DomainRelationsTests(TestCase):
 class DispatcherInterfaceTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.dispatcher = User.objects.create_user("editor", dispatcher=True)
-        cls.guard = Employee.objects.create(user=User.objects.create_user("current"))
-        cls.candidate = Employee.objects.create(user=User.objects.create_user("candidate"))
+        cls.dispatcher = User.objects.create_user("editor", email="editor@example.test", dispatcher=True)
+        cls.guard = Employee.objects.create(user=User.objects.create_user("current", email="current@example.test"))
+        cls.candidate = Employee.objects.create(user=User.objects.create_user("candidate", email="candidate@example.test"))
         cls.day = django_timezone.localdate() + timedelta(days=40)
         schedule = Schedule.objects.create(month=cls.day.replace(day=1))
         shift = Shift.objects.create(schedule=schedule, site=ObjectSite.objects.create(name="Пост"), day=cls.day)
@@ -174,14 +174,14 @@ class AvailabilityUnitTests(SimpleTestCase):
 class GuardAccountTests(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.dispatcher = User.objects.create_user("account_editor", dispatcher=True)
-        cls.guard = User.objects.create_user("existing_guard")
+        cls.dispatcher = User.objects.create_user("account_editor", email="account_editor@example.test", dispatcher=True)
+        cls.guard = User.objects.create_user("existing_guard", email="existing_guard@example.test")
         Employee.objects.create(user=cls.guard)
 
     def setUp(self):
         self.client.force_login(self.dispatcher)
         self.url = reverse("directory", args=["guards"])
-        self.data = {"username": "new_guard", "password": "Secure-Guard-4821!", "is_active": "on"}
+        self.data = {"username": "new_guard", "email": "new_guard@example.test", "password": "Secure-Guard-4821!", "is_active": "on"}
 
     def test_dispatcher_creates_guard_account_and_guard_can_log_in(self):
         self.assertContains(self.client.get(self.url), 'data-vue-page="guards"')
@@ -205,6 +205,17 @@ class GuardAccountTests(TestCase):
         self.assertEqual(self.client.post(self.url, self.data).status_code, 403)
         self.assertFalse(User.objects.filter(username=self.data["username"]).exists())
 
+
+    def test_email_required_for_new_guard(self):
+        response = self.client.post(self.url, {**self.data, "email": ""})
+        self.assertIn("email", response.context["form"].errors)
+        self.assertFalse(User.objects.filter(username="new_guard").exists())
+
+    def test_duplicate_email_rejected(self):
+        response = self.client.post(self.url, {**self.data, "email": self.guard.email})
+        self.assertIn("email", response.context["form"].errors)
+        self.assertFalse(User.objects.filter(username="new_guard").exists())
+
     def test_password_required_for_new_guard(self):
         response = self.client.post(self.url, {**self.data, "password": ""})
         self.assertIn("password", response.context["form"].errors)
@@ -222,3 +233,72 @@ class GuardAccountTests(TestCase):
         self.assertRedirects(self.client.post(url, {**self.data, "username": "renamed_guard", "password": ""}), self.url)
         self.guard.refresh_from_db()
         self.assertTrue(self.guard.check_password(self.data["password"]))
+
+
+class EmailConsoleTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.guard = User.objects.create_user("mail_guard", email="guard@example.com")
+
+    @override_settings(DUTY_EMAIL_MODE="console", EMAIL_BACKEND="django.core.mail.backends.console.EmailBackend")
+    def test_console_delivery_is_created_and_processed(self):
+        from io import StringIO
+        from django.core.management import call_command
+        from .models import Delivery
+
+        notify([self.guard], "Тестовое уведомление")
+        self.assertEqual(Delivery.objects.filter(channel=Delivery.Channel.INTERNAL).count(), 1)
+        self.assertEqual(Delivery.objects.filter(channel=Delivery.Channel.EMAIL).count(), 1)
+        output = StringIO()
+        with patch("sys.stdout", output):
+            call_command("duty_tick")
+        self.assertIn("Тестовое уведомление", output.getvalue())
+        delivery = Delivery.objects.get(channel=Delivery.Channel.EMAIL)
+        self.assertIsNotNone(delivery.sent)
+        self.assertFalse(delivery.failed)
+
+    @override_settings(DUTY_EMAIL_MODE="off")
+    def test_email_disabled_keeps_internal_notification(self):
+        from .models import Delivery
+        notify([self.guard], "Без почты")
+        self.assertEqual(Delivery.objects.filter(channel=Delivery.Channel.INTERNAL).count(), 1)
+        self.assertFalse(Delivery.objects.filter(channel=Delivery.Channel.EMAIL).exists())
+
+
+class EmailSMTPTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.guard = User.objects.create_user("smtp_guard", email="guard@example.test")
+
+    @override_settings(DUTY_EMAIL_MODE="smtp", EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_queued_email_is_sent_and_marked_sent(self):
+        from django.core import mail
+        from django.core.management import call_command
+        from .models import Delivery
+
+        notify([self.guard], "Смена перенесена")
+        call_command("duty_tick")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["guard@example.test"])
+        self.assertIn("Смена перенесена", mail.outbox[0].body)
+        delivery = Delivery.objects.get(channel=Delivery.Channel.EMAIL)
+        self.assertIsNotNone(delivery.sent)
+        self.assertEqual(delivery.attempts, 1)
+
+    @override_settings(DUTY_EMAIL_MODE="smtp", EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_test_email_command(self):
+        from django.core import mail
+        from django.core.management import call_command
+        with override_settings(EMAIL_HOST="smtp.example.test", EMAIL_HOST_USER="user", EMAIL_HOST_PASSWORD="secret"):
+            call_command("duty_test_email", "recipient@example.test")
+        self.assertEqual(mail.outbox[0].to, ["recipient@example.test"])
+
+
+class PlaceholderEmailTests(TestCase):
+    @override_settings(DUTY_EMAIL_MODE="smtp")
+    def test_placeholder_address_does_not_create_email_delivery(self):
+        from .models import Delivery
+        guard = User.objects.create_user("placeholder", email="placeholder@example.invalid")
+        notify([guard], "Новая смена")
+        self.assertEqual(Delivery.objects.filter(channel=Delivery.Channel.INTERNAL).count(), 1)
+        self.assertEqual(Delivery.objects.filter(channel=Delivery.Channel.EMAIL).count(), 0)

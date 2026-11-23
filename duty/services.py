@@ -36,8 +36,8 @@ def notify(users, body, dispatch=False, email=True):
     deliveries = [
         Delivery(notice=notice, recipient_id=pk, channel=Delivery.Channel.INTERNAL) for pk in ids
     ]
-    if email and settings.EMAIL_HOST != "localhost":
-        recipients = User.objects.filter(pk__in=ids).exclude(email="").values_list("pk", flat=True)
+    if email and settings.DUTY_EMAIL_MODE != "off":
+        recipients = User.objects.filter(pk__in=ids).exclude(email="").exclude(email__iendswith=".invalid").values_list("pk", flat=True)
         deliveries.extend(
             Delivery(notice=notice, recipient_id=pk, channel=Delivery.Channel.EMAIL) for pk in recipients
         )

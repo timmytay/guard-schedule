@@ -2,6 +2,14 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+# Простой .env без внешних зависимостей; реальные переменные окружения имеют приоритет.
+env_file = BASE_DIR / ".env"
+if env_file.exists():
+    for raw_line in env_file.read_text(encoding="utf-8-sig").splitlines():
+        line = raw_line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 DEBUG = os.getenv("DUTY_DEBUG", "1") == "1"
 SECRET_KEY = os.environ.get("DUTY_SECRET_KEY")
 if not SECRET_KEY:
@@ -52,10 +60,21 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 SECURE_SSL_REDIRECT = not DEBUG
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+DUTY_EMAIL_MODE = os.getenv("DUTY_EMAIL_MODE", "off").lower()
+if DUTY_EMAIL_MODE not in {"off", "console", "smtp"}:
+    raise ValueError("DUTY_EMAIL_MODE must be off, console or smtp")
+EMAIL_BACKEND = (
+    "django.core.mail.backends.console.EmailBackend"
+    if DUTY_EMAIL_MODE == "console"
+    else "django.core.mail.backends.smtp.EmailBackend"
+)
 EMAIL_HOST = os.getenv("DUTY_SMTP_HOST", "localhost")
 EMAIL_PORT = int(os.getenv("DUTY_SMTP_PORT", "587"))
 EMAIL_HOST_USER = os.getenv("DUTY_SMTP_USER", "")
 EMAIL_HOST_PASSWORD = os.getenv("DUTY_SMTP_PASSWORD", "")
-EMAIL_USE_TLS = True
+EMAIL_USE_TLS = os.getenv("DUTY_SMTP_TLS", "1") == "1"
+EMAIL_USE_SSL = os.getenv("DUTY_SMTP_SSL", "0") == "1"
+if EMAIL_USE_TLS and EMAIL_USE_SSL:
+    raise ValueError("Enable either DUTY_SMTP_TLS or DUTY_SMTP_SSL, not both")
 EMAIL_TIMEOUT = 10
 DEFAULT_FROM_EMAIL = os.getenv("DUTY_EMAIL_FROM", "schedule@localhost")

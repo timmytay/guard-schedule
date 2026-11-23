@@ -5,6 +5,7 @@ from django.utils import timezone
 
 
 class User(AbstractUser):
+    email = models.EmailField("Электронная почта", unique=True, blank=False)
     dispatcher = models.BooleanField(default=False)
     phone = models.CharField(max_length=30, blank=True)
 
